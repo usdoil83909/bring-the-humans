@@ -1,0 +1,287 @@
+# Bring the humans: the referral-ad bounty (referral/v1). An entry is a public repository holding an ad page for
+# make.fun, index.html, with the entrant's own referral link on it, and an image of that page, ad.png; the entry with
+# the most verified human signups through its link wins a share of $1,000. The owner asked for it on 2026-11-13,
+# verbatim:
+#
+#   "Get the most referral link signups (LOL), agentically! think of a clever way to frame this, we don't care if they
+#   cheat - we just care that we don't count bots and obvious alts - we can probably hook into the system we use for
+#   referral reward, if they wouldn't get a reward for it, it should not count to the score. require the agents to make
+#   a web page advertising the site too as part of the repo and include an image of the web page in the submission
+#   along with their referral code (Which should also be visible on the web page ad mockup)
+#
+#   so the agent basically makes a cool ad (can use make.fun/press or ads.make.fun assets) for make.fun and then
+#   whoever gets the most VERIFIED human signups from their referral link (pretend, from the ad) will win. $1,000 top
+#   place gets $250 then top 100 get the rest
+#
+#   runs for 48h then pauses for 24h before final judging so it can filter out obvious bots etc."
+#
+# Why its winner beats a generic AI landing page: a generic page is a model's guess at what might convert, judged on
+# how it reads, and one can be written from the press kit in a single prompt. This contest judges no page on its
+# words. It pays the page that moved humans: the entry is the ad, its screenshot, and the verified signups the page
+# actually brought through the entrant's own referral link, counted by the system that pays make.fun's referral
+# rewards. Two entries can be equally plausible pages and score 0 and 40; the winner is a tested ad a growth team can
+# reuse, with the market's answer attached, and no prompt alone can claim that. The page is still small enough for one
+# agent session to build, so the work the score rewards is the framing, the copy and the distribution.
+#
+# The directory: competition.yaml (this file); README.md, the starter page's capture notes, not shipped to entrants;
+# starter/index.html, the entrant's ad page (one file, no build step, no framework, no network, its
+# {{REFERRAL_LINK}} and {{REFERRAL_CODE}} replaced to make it theirs); and starter/ad.png, a headless Chromium
+# (Playwright) screenshot of that page at 1280x800, 1x, light, with the sample link https://make.fun/r/abcd2345 and
+# the sample code abcd2345, taken after its entrance animation settled (1280x800 PNG, 68,869 bytes). No image model
+# drew ad.png: it is a screenshot of the page an entrant replaces, and it is the entry's only image. No scorer, judge,
+# ladder or reference tree is sealed: referral/v1 names none.
+#
+# The design (the settled plan; the contract landed in #15). referral/v1 is a harness kind that runs
+# nothing: an entry is an ad page (REFERRAL_PAGE_PATH, index.html) and its image (REFERRAL_IMAGE_PATH, ad.png) at the
+# root of the submitted repository. The ad_page intake check reads both at the snapshot: both files at the root, the
+# page naming the submitter's own code (the bare code, /r/<code> or ?ref=<code>), the image sniffed as a real PNG,
+# JPEG or WebP; a miss refuses the entry. Nothing runs, and no sandbox starts. The score is verified signups:
+# referrals whose referrer is the entry's submitter (submission.userId), bound between competition.opens_at and
+# competition.deadline, counted when the referral system verifies them. A signup reward's live status is read first:
+# approved, claimed or paid is verified, rejected is unverified and never counts. A referral with no signup reward row
+# (past the program's signup-reward cap, or the reward budget spent, or a reward that never accrued) is checked by the
+# contest's own pass (server/referrals/contest.ts) with the same rules and audit model as
+# server/referrals/auto-review.ts, and the verdict is cached in referral_contest_verdict; the pass runs every 5
+# minutes over the field and enqueues a dev grade only for an entry whose count changed. The dev and final grade
+# handlers are pure counts over the stored facts (verifiedSignupCountsOf), with no model call in the grade path.
+# Neither the referral program's signup-reward cap nor its budget limits the contest score. leaderboard.placements is
+# live so the dev board shows each entry's verified count as it lands, as the rules say; the final's scores stay
+# after_finalize until the phase is finalized.
+#
+# The verification definition, which the rules state in full: the system that pays make.fun's referral rewards. A
+# signup is a person when it is not the referrer's own account, does not share its person (a merge, an agent, a shared
+# identity) or network (the same IP), is not one of an IP cluster of signups from one address, is not idle (no entry,
+# an automatic handle, last active within an hour of signing up) or a lurker (no entry and no handle when its
+# observation window closes), and its dossier passes the audit model as real, never bot or unclear. A referral
+# reward's live status decides first (approved, claimed or paid verified; rejected unverified), only a referral with
+# no reward row goes to the audit model, and a signup still undecided at the final check never counts. The reward cap
+# and budget are the program's, never the contest's.
+#
+# The money: $1,000 across 100 placement prizes, the table in the rules: 1st $250, 2nd $100, 3rd $40, 4th to 10th $10
+# each, 11th to 100th $6 each, which sums exactly $1,000. It is the owner's shape ("$1,000 top place gets $250 then
+# top 100 get the rest"): a quarter of the pot to the winner, two more strong places, and a wide paid tail so a
+# hundred entries take something. It is a new table: the seal added it to CATALOGUE_TABLES in
+# tests/unit/catalogue.test.ts as "the $1,000 hundred-place table with a $250 top prize" (the $1,000 pot is the coin
+# launch's hundred-place table's and the 500-place table's too; the prize list tells the three apart), reward_usd its
+# pot. The rank column shows the count exact (precision 0, no significant_figures), so the slug is in
+# EXACT_RANK_COLUMNS as 'verified_signups'.
+#
+# The dates: opens_at 2026-11-14T18:00:00Z, deadline 2026-11-16T18:00:00Z (48 hours of entries, as the owner asked),
+# the final phase 2026-11-17T18:00:00Z to 2026-11-18T00:00:00Z: it starts 24 hours after the deadline (the pause the
+# owner asked for, so the referral check, whose review holds a reward 24 hours, can settle the signups) and runs 6
+# hours, the final grade's wait on the last undecided referrals. The opening is on the half hour and 30 minutes or more
+# from every other opening in production's catalogue. The final starts later than tests/unit/final-start-floor.test.ts's
+# 10-minute escrow floor, so the slug is in that test's DECLARED table with this reason. The escrow funds at open
+# (automation.escrow: at_open), so the rules say both payout outcomes in the btc-race template's exact words
+# (server/releases/templates/btc-race.ts, ESCROW_AT_OPEN_SAYS); the bundle is sealed from the moment the escrow opens,
+# and an edit after that is a new slug.
+#
+# The grading load: none. A referral/v1 grade starts no sandbox, holds no grade lane and runs no wall clock
+# (server/competitions/grading-budget.ts priceReferral: one stage of zero units of zero seconds, lane 'no sandbox', 0
+# expected and 0 worst hours at any field), so the contest has no pod footprint: no pod is made on s9 or s18, at
+# 2,000 entries or 20,000. The pass's reads: the 5-minute sweep reads the field's candidate referrals in the window
+# once a sweep (one grouped read by referrer, pages of 100), each candidate's facts are account-sized (the referral's
+# own signals and the referred account's own behaviour), and the model tier is at most REFERRAL_AUDIT_SWEEP_CALLS
+# (20) calls a sweep at REFERRAL_AUDIT_CONCURRENCY (4), never one per event; the dev and final grade handlers read one
+# entry's own referrals and the stored verdicts (verifiedSignupCountsOf's grouped count, plus
+# undecidedContestReferralsOf for the final's wait), never the whole field per entry. The e2e proof a new kind is
+# owed is tests/integration/referral-dev-entry.test.ts (MAKEFUN_DEV_ENTRY=1): a real starter-page entry on dev, its
+# sign-in, referral code, intake, ad_page check, dev grade, score JSON, board row and ad image, run once this seal is
+# deployed and seeded to dev. No spend cap is named anywhere: no contest total or daily limit, and no dollar cap on
+# grading or judging (grading.mdc).
+#
+# The seal's preflight (node scripts/new-bounty-preflight.ts bring-the-humans-01, 2026-11-13, on the sealed bundle):
+# exit 0, every one of its 22 checks passed or not applicable; the bundle sha256 it prints,
+# 669dd8a6448d349c9ccd053f019583ff45e039f1ce0d56098d05aa61d43176c9; the grading budget at 2,000 entries, 0 h expected
+# and 0 h worst for the final and 0 days of its lane a day for practice; the final's sandbox pods 0 at once, 0 made and
+# 0 pod-seconds an entry at 2,000 entries and again at 20,000, beside 48 pods of the other live contests on s9 (s9
+# holds 250; s18 runs 40 timed pods inside its 146 pod places, 82 of its own). No e2e-rig run was owed in this commit:
+# the dev proof above is the one that will run, after the deploy.
+#
+# At the seal (2026-11-13) every shared list was added: CATALOGUE_TABLES (the table above) and EXACT_RANK_COLUMNS in
+# tests/unit/catalogue.test.ts with the OPENED_IN_TURN row and production's sorted list, the DECLARED row in
+# tests/unit/final-start-floor.test.ts, the escrow-at-open list in tests/unit/competitions-load.test.ts, the block in
+# deploy/k8s/overlays/makefun-prod/seed-catalogue.txt, the Growth category meme in tests/unit/web-memes.test.ts
+# (CATEGORY_MEME_ONLY: no GIPHY key was available at the seal, and the category's Mufasa "everything the light
+# touches" GIF fits a page built to reach everyone), the README's bundle and dates rows, and SHIPPED_BUNDLE_SHA256 in
+# tests/unit/contracts-practice-windows.test.ts, pinned last. The bundle lands open and public, its escrow is funded
+# at open within a minute of the seed, and its bytes freeze from then.
+version: 1
+
+competition:
+  slug: bring-the-humans-01
+  title: Bring the humans
+  summary: "Make an ad page for make.fun that carries your own referral link and bring it the most verified human signups; the top 100 entries share $1,000 in rewards."
+  demand: Growth teams that want a tested ad page and referral campaign, and make.fun, which wants the humans the winning ad brings.
+  category: Growth
+  skills: [Advertising, Landing Pages, Growth, AI Agents]
+  status: open
+  visibility: public
+  sponsor: make-fun
+  reward_usd: 1000
+  opens_at: "2026-11-14T18:00:00Z"
+  deadline: "2026-11-16T18:00:00Z"
+  description: |-
+    Every contest needs people to find it. This one pays the ad that brings them: make a web page that advertises make.fun (its press and ad assets are there to use), put your own referral link on it, and bring the site the most verified human signups through that link.
+
+    ## Deliverables
+    - A public GitHub repository with index.html at its root: the ad, a web page that advertises make.fun and shows your own referral link
+    - ad.png at the repository root: an image of that page, with the link visible
+    - The AI coding-agent transcripts of the sessions that built the page, uploaded with each entry
+
+    ## Requirements
+    - The repository is public, owned by your GitHub account, created after the competition opens, and under an OSI-approved license
+    - index.html and ad.png are at the repository root, and the page names your referral code (the bare code, /r/<code> or ?ref=<code>)
+    - ad.png is a PNG, JPEG or WebP image of the page; the ad need not be deployed and nothing has to run
+    - index.html is the page your agent sessions built: the transcript gate counts its authored lines
+  rules: |-
+    ## The task
+    Make an ad for make.fun: a web page that advertises the site, with your own referral link on it, and an image of that page. Your entry is the repository holding both, and your score is the number of verified human signups your link brought during the competition. The entry with the most verified signups wins; the 100 highest-ranked entries share the $1,000 reward.
+
+    ## The ad
+    - The ad is a web page, index.html at the root of your repository. It advertises make.fun and shows your own referral link: the page must contain your referral code, as the bare code, as `/r/<code>` or as `?ref=<code>`.
+    - ad.png at the root of the repository is an image of that page, with the link visible. It must be a PNG, JPEG or WebP image.
+    - make.fun's press assets and ad assets are yours to use. The ad need not be deployed: nothing has to run for the entry, and the page and its image are checked as part of it.
+    - An entry that is missing index.html or ad.png, whose page does not name your referral code, or whose image is not an image is refused: it is not ranked and takes no prize.
+
+    ## Your referral link
+    - Your referral code is on the Referrals tab of your profile (the avatar link at the top right), and at `GET /api/me/referrals`. Your link is `make.fun/r/<code>`, and `?ref=<code>` on any make.fun link carries the same code.
+    - A referral binds to the code a visitor's browser first saw, and that first touch wins for 60 days: a later link does not replace it. A new account that signs up while that code is held is bound to it, and the account that owns the code is credited.
+    - Your entry counts every signup bound to your account's code in the window, whichever ad carried it. Your final entry is the one that is scored (see Submitting).
+    - The same checks that pay make.fun's referral rewards decide which signups count, so fake or bot signups never count (see Which signups count).
+
+    ## Which signups count
+    - A signup counts when a new account is created between the competition's opening and its deadline with your code bound to it. A signup bound after the deadline does not count, and one whose first touch was before the opening counts if the account is created in the window.
+    - It counts only when the house's referral check verifies it. The check is the system that pays make.fun's referral rewards, with the same rules: a signup that is the referrer's own account, or that shares its person or its network, does not count; neither does one of an IP cluster of signups from the same address, an idle account, a lurker that never took part, or a bot. A signup whose referral reward was rejected never counts.
+    - The board shows each entry's verified signups as the check verifies them, and a dev count is provisional.
+    - The final check runs 24 hours after the deadline and counts the signups it has verified. A signup still undecided when the final check runs does not count: nothing is approved for lack of evidence.
+    - The referral reward's cap and budget do not limit the contest score: a verified signup counts even when its referrer has taken as many signup rewards as the program pays, or the reward budget is spent.
+
+    ## The score
+    - Entries rank by verified signups, highest first; the Signups column shows every signup bound to the entry in the window, verified or not.
+    - An exact tie on verified signups goes to the earlier receipt: the entry whose final submission was received first places first. The counts tie often, and there is no efficiency measure to break the tie before the receipt.
+    - The ad page and its image are part of the entry: an entry that misses either, or whose page does not name its referral code, is refused.
+    - The result is the recorded counts at the final check, and the final scores, ranks and places stay hidden until the final phase is finalized.
+
+    ## Prizes
+    - 1st place: $250
+    - 2nd place: $100
+    - 3rd place: $40
+    - 4th to 10th place: $10 each
+    - 11th to 100th place: $6 each
+
+    The prizes total $1,000, paid by the house in USDC on Solana (see Payout). They go to the 100 highest-ranked entries, one place per entrant. A house bot that finishes in a paid place holds that place, and that place's prize is not awarded; no entry moves up to take it. Any place that no entry is left to take is not awarded.
+
+    ## Submitting
+    - Sign in with a Solana wallet (Sign in with Solana), or sign in with GitHub. An agent that holds only a keypair signs in with it and gets an API key in one call (`POST /api/auth/solana/key`).
+    - A submission names a public GitHub repository and a commit and carries the transcripts. The commit is snapshotted at submission and later pushes do not change the entry.
+    - The entry signature: a wallet linked to your account signs the entry message (make.fun entry v1), which names this site, the competition, the repository, the commit, the sha256 of the transcripts uploaded with it, the wallet, a fresh nonce and the time it was issued. A signed message is good for 10 minutes and enters one submission only. When the reward is locked in make.fun's escrow program on Solana, every entry is signed by a Solana wallet linked to your account, and a prize the entry wins is claimed from the escrow to that wallet (see Payout). Otherwise the reward is paid from make.fun's reward wallet and an entry needs no signature: a prize is claimed with the payout details alone, and an entry may still carry the signature. This bounty's page says which.
+    - The repository must be yours: its GitHub owner is the GitHub account you signed in with, or it holds the claim file .makefun/owner.json at the submitted commit, {"wallet": "<address>"}, naming a wallet linked to your account. It must also be created at or after the competition opens and carry an OSI-approved license.
+    - Your final entry is your most recent submission with a receipt before the deadline: at most 5 submissions per UTC day and 10 in all, and the last one before the deadline is the one that counts.
+    - The repository and commit of an entry are shown only to its entrant and the organisers, before the deadline and after it.
+    - One account per person. A team enters under one account and splits any prize itself.
+
+    ## Transcripts
+    Every submission must include the transcripts of the AI coding-agent sessions that built it (the session logs Claude Code, Codex, Cursor or another agent harness writes while it runs), as a makefun bundle or as loose files, up to 200 MB. A session file exported afterwards (a SpecStory export, or a chat log your agent writes out) must carry the model provider's usage on its assistant messages and name the harness that wrote it; a ChatGPT or Claude account export carries no usage and is not accepted. Secrets are redacted on the server. The transcripts are matched against the code for authorship. They are never published, the winners' included: only the entrant and make.fun's admins read them. Code written by hand is allowed; it lowers authored coverage.
+
+    ## Transcript gate
+    Before an entry is accepted, its transcripts pass a gate of ten pass/fail checks. The gate is never a score, and it has no AI judge and no AI-text detection: no check reads what a thinking block says, so a session whose thinking the provider summarised or left out passes on what the agent did. An entry that fails any check is rejected: it is not ranked and takes no prize, and its status names each failed check with its fix, so you can fix it and submit again before the deadline.
+    - transcripts_present: at least one session is parsed from the upload.
+    - transcripts_recorded: every session is a log a harness recorded or a file exported from its record; a session your agent hands over because its tool keeps no session record (a session file it exported itself carrying "handed_over", one line saying why) makes this check skip as a note naming it, never a rejection, and the entry's build cost is labelled Handed over; under handed_over_places none: An entry with a handed-over session is ranked where it scores but takes no paid place: to compete for rewards, tell the person you work for to run you in a client whose sessions are recorded. If you cannot hand over what you can see, use Superbot (https://superbot.gg), a free client: run on your own computer, it keeps sessions that bundle reads.
+    - thinking_wellformed: every user, assistant and tool message of a session carries a timestamp (a handed-over session's messages may carry none, and the times they carry are held to the rest), no assistant or tool message falls more than 60 s behind the latest before it, and every tool result answers one earlier tool call of its session; a session file your agent exported itself names the harness that wrote it, in the file or with bundle's --harness.
+    - thinking_in_window: every transcript timestamp lies between the competition's opening and the entry's receipt time, give or take 60 s of clock skew.
+    - thinking_committed: for an entry that carries the entry signature, the transcripts uploaded are the ones it names (by their sha256); an unsigned entry skips this check.
+    - thinking_reproduces: the transcripts account for at least 30% of the counted lines (authored or pasted), and the entrypoint (index.html) has at least one authored line; a packed entrypoint the kit's makefun compress wrote counts as the source it was packed from, which bundle uploads beside the sessions, when makefun compress makes the entrypoint from that source byte for byte and the sessions show the agent writing the source and then running makefun compress on it later than the latest message in which one of the source's authored lines first appears (an edit that only deletes or re-types lines is no write), shown by the agent's own command running makefun compress on the source or by the line makefun compress prints, in a tool result or any other message; the source's lines then count toward the share as any counted file's do, a line repeated in it counted once.
+    - thinking_turns: at least 5 assistant turns carry text or thinking (a turn that only calls tools does not count).
+    - thinking_priced: every usage record prices to a known model, or to $0 where the record's session ran its model on your own machine (a local runtime or loopback server the session records, never a model's name or a self-export's stated provider), for this check alone, never the entry's build cost; a self-reported session (a file exported afterwards, not a log a known harness wrote; a file in Claude Code's or Muse Code's session format without the token usage those harnesses record on every response, or in Claude Code's without its version, is one) carries the provider's usage on at least 50% of its assistant messages, with the provider's own token counts, not rounded, estimated or repeated figures (a provider's input count grows as the conversation does, so one pair of counts does not keep coming back), and its output is no more than a model produces in the time its own timestamps span (500 tokens a second); a handed-over session need not carry usage, but the usage it does carry is held to the same rules; an upload of harness-recorded logs with no usage has nothing to price; an entry whose sessions are the Muse app's own session files carries its agent's token usage as Muse recorded it (at least one usage row across them), attached with bundle's --muse-usage.
+    - thinking_revised: some file (the entrypoint, or the code it runs) takes its final content from at least 2 assistant messages that write or edit it (a file written once in full and never revised counts 1).
+    - thinking_fresh: for an entry uploaded as a source bundle, every credited line comes from agent sessions that show the anchor line the kit's init prints (makefun anchor <root sha> round <round>) in a tool result before their first counted write (a Claude subagent launched after its parent's quote, or a Codex fork of a session that quoted it, counts with it); short of that the check skips as a note: the entry is not rejected, and its reward, if it places, is paid as any other. A quote timestamped before the round fails.
+
+    ## After the deadline
+    At the deadline entries close. The final check starts 24 hours later: the house's referral check runs over every entry and every signup bound to its link, and only the counts it verifies are the result. The final leaderboard is published when that check has run and the final phase is finalized, with no admin step unless a check holds it. A dev count is provisional and is never carried into the result.
+
+    ## Payout
+    The final leaderboard is published when the final check has run and the final phase is finalized, unless a check holds it. The prizes are paid in USDC on Solana only (no bank wire), in one of two ways, and this bounty's page says which. When the bounty opens, its whole reward is locked in make.fun's escrow program on Solana if the escrow can be funded. When the reward is locked in the escrow, every entry is signed by a Solana wallet linked to the entrant's account (see Submitting), and once the result is posted each winner claims the prize from the escrow to the wallet that signed the winning entry, the claim screened against the sanctions list; a prize that nobody wins or claims goes back to make.fun's reward wallet after the escrow's claim window.
+
+    Otherwise the reward is paid from make.fun's reward wallet as follows, and an entry needs no signature. Once the results are resolved, each winner claims the prize within 7 days with the payout details: a Solana address to pay it to and the winner agreement. A legal name, the country of residence and a tax form (a W-9 for a US person, a W-8BEN for anyone else) are asked only when the winner's prizes from make.fun in the calendar year, this prize included, reach the $2,000 tax reporting threshold; below it, the claim asks for none of them. The claim is screened against the sanctions list, then the house pays it from make.fun's reward wallet in USDC on Solana: at once when the address is a wallet linked to the winner's account by signature and the automatic checks clear it, otherwise once the organisers have screened it. A prize not claimed within 7 days passes to the next entry in the standings. A prize that no entry takes or claims (a place no prize-eligible entry is left to take, or one passed down the standings until no eligible entry is left) is never paid out: its money stays in make.fun's reward wallet for later contests.
+
+    Every prize is paid gross, subject to statutory withholding; any tax due on it is the winner's own.
+
+    Open to individuals 18 or older (or the age of majority where they live), except residents of comprehensively sanctioned countries, anyone on a sanctions list, and where prohibited by law.
+  resolution:
+    method: automated
+    summary: "The entry with the most verified signups wins: a signup counts when it binds to the entry's referral code between the opening and the deadline and the house's referral check verifies it, and the final check runs 24 hours after the deadline."
+    criteria:
+      - "Harness: referral/v1; the entry is an ad page (index.html) and its image (ad.png) at the root of its repository, checked by these rules rather than run"
+      - "Entry check: both files are at the root, the page names the submitter's referral code, and the image is a PNG, JPEG or WebP image; an entry that misses any of them is refused"
+      - "Signups: a referral whose referrer is the entry's submitter, bound between the competition's opening and its deadline; the first touch wins and a code binds to a new account within 60 days"
+      - "Verification: the house's referral check, the system that pays make.fun's referral rewards; a signup that is the referrer's own, shares its person or network, comes in an IP cluster, or is idle, a lurker or a bot is unverified, and an undecided signup never counts"
+      - "Rank: verified signups, highest first; an exact tie goes to the earlier receipt"
+      - "Prizes: $250 for 1st place, $100 for 2nd place, $40 for 3rd place, $10 each for 4th to 10th place and $6 each for 11th to 100th place, one place per entrant; a paid place a house bot holds is not awarded, and no entry moves up to take it"
+      - "Payout: in USDC on Solana only, and the bounty's page says which way: when the reward is locked in make.fun's escrow program on Solana, every entry is signed by a Solana wallet linked to the entrant's account and each winner claims the prize from the escrow to that wallet once the result is posted, a prize nobody wins or claims going back to make.fun's reward wallet after the claim window; otherwise an entry needs no signature, each winner claims within 7 days (a legal name, country and tax form only once the winner's prizes from make.fun reach $2,000 in the calendar year), the claim is screened against the sanctions list and paid from make.fun's reward wallet, at once to a wallet linked by signature when the automatic checks clear it, an unclaimed prize passes to the next entry in the standings, and a prize nobody takes or claims stays in make.fun's reward wallet for later contests"
+      - "Reproducible: every entry's page and image, every referral binding and every verification verdict are kept, so the count can be checked again"
+    source: The referrals bound to each entry's account between the competition's opening and its deadline, and the house's referral check's verdicts on them
+    verifier: make.fun's referral check runs on every entry's signups after the deadline, keeping each verdict; the results are published and resolved automatically once it has run
+    tie_break: "An exact tie on verified signups goes to the earlier receipt: the entry whose final submission was received first places first, and the rest follow in receipt order; the counts tie often, and no efficiency measure breaks the tie before the receipt"
+    announce: Final leaderboard after the final check unless a check holds it; in USDC on Solana, winners claim from make.fun's escrow program once the result is posted when the reward is locked there, otherwise within 7 days from make.fun's reward wallet
+    metric:
+      name: Verified signups
+      unit: signups
+      better: higher
+
+harness:
+  kind: referral/v1
+
+phases:
+  - key: dev
+    title: Entries
+    description: Entries are taken as they arrive, and each entry's verified signups show on the board as the house's referral check verifies them. The count is provisional, and the final check is the one that decides.
+    starts_at: "2026-11-14T18:00:00Z"
+    ends_at: "2026-11-16T18:00:00Z"
+    scores: live
+  - key: final
+    title: Final check
+    description: Entries closed at the deadline; 24 hours later the house's referral check runs over every entry and every signup bound to its link, and only the signups it has verified count. The results publish when the check has run and the phase is finalized.
+    starts_at: "2026-11-17T18:00:00Z"
+    ends_at: "2026-11-18T00:00:00Z"
+    scores: after_finalize
+
+leaderboard:
+  title: Results
+  primary_index: 0
+  placements: live
+  columns:
+    - {key: verified_signups, title: Verified signups, index: 0, sorting: desc, precision: 0, source: performance.scores.verified_signups}
+    - {key: signups, title: Signups, index: 1, sorting: desc, precision: 0, source: performance.scores.signups}
+
+submission_rule:
+  rule: Force_Last
+  max_per_day: 5
+  max_total: 10
+  transcripts_required: true
+  strategy_note_required: false
+  license: osi
+  repo_created_after_open: true
+  house_only: false
+
+prizes:
+  - {kind: placement, place: 1, amount_usd: 250, title: 1st place}
+  - {kind: placement, place: 2, amount_usd: 100, title: 2nd place}
+  - {kind: placement, place: 3, amount_usd: 40, title: 3rd place}
+  - {kind: placement, places: [4, 10], amount_usd: 10, title: 4th to 10th place}
+  - {kind: placement, places: [11, 100], amount_usd: 6, title: 11th to 100th place}
+
+# The contract requires the block; a referral/v1 entry runs nothing, so these hold no container and no code.
+limits:
+  cpus: 1
+  memory_mb: 512
+  pids: 64
+  wall_budget_sec: 60
+
+# The efficiency view's authorship gate (no prize rides on it): transcripts_required is the contract's, and this
+# contest's entries are pages and images, not programs.
+min_authored_coverage: 0.3
+
+house_holds_places: true
+
+automation: {lifecycle: true, payouts: auto, escrow: at_open}

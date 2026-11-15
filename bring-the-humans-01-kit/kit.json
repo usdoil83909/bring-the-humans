@@ -1,0 +1,63 @@
+{
+  "format": "agent-fun/kit/v1",
+  "competition": "bring-the-humans-01",
+  "phase": "dev",
+  "bundle_sha256": "669dd8a6448d349c9ccd053f019583ff45e039f1ce0d56098d05aa61d43176c9",
+  "dataset_sha256": null,
+  "harness_version": "harness@dbc4af3a0f7070d2b694488bdb036bba83857c8c8f08ec33906b805a7c56cab9 node v22.23.4",
+  "scorer_version": "scorer@dd3860d98f84ec75c0321fb66a672b45ab41056f48ebb91ba5af0be7981e27d9",
+  "pricing_rev": "472b48ba54ffaf5d3f3c9230050ef16360d2fb9280d6b299e549e2bd8e0b6393",
+  "protocol": "agent-fun/referral/v1",
+  "files": [
+    {
+      "path": "RULES.txt",
+      "sha256": "816abdddbcf194db8e584562934126de0c4af7b61c8b96ab3be06b945a887943",
+      "size": 57265
+    },
+    {
+      "path": "cli/makefun.mjs",
+      "sha256": "739d159be6b1d19b8e9d5d46cfc48ff5b2e3ab984b25ebe818300530f805beb8",
+      "size": 12485656
+    },
+    {
+      "path": "cli/site.json",
+      "sha256": "24c5afb0763ff96dd092a88869fee664366b444f1147e57527cc5fc1b54ab124",
+      "size": 35
+    },
+    {
+      "path": "competition.yaml",
+      "sha256": "223a620ebaefde35e0a0181db04f2df016cb2285be63da23b0ecb8f2b2507716",
+      "size": 32510
+    },
+    {
+      "path": "harness/CODE.sha256",
+      "sha256": "99e979d5b9ae901ec5d32dae7bed5040744c99eeaf2423c255853e7b67eef519",
+      "size": 14989
+    },
+    {
+      "path": "harness/SOURCES.sha256",
+      "sha256": "4a895cbae1e5fe9e1c071d62af1950b9b0edb9f056907556e1122f1519aaa567",
+      "size": 14989
+    },
+    {
+      "path": "harness/harness-src.tar.gz",
+      "sha256": "6b59c0155fefd3e232b10a7568d148eafaa3dfe732ea3d24accc4e481792e024",
+      "size": 2020119
+    },
+    {
+      "path": "harness/harness-src.tar.gz.sha256",
+      "sha256": "2c73a0560bfb97457bda1edbd7eb886859b399b081a63b2817aba60b737a1261",
+      "size": 85
+    },
+    {
+      "path": "starter/ad.png",
+      "sha256": "d9ab2c9babf28c6478689980235032174f8a28c177c4e4e458747abb3e415363",
+      "size": 68869
+    },
+    {
+      "path": "starter/index.html",
+      "sha256": "3bd7cd4997f069dd8dd66f4d1b3b3db9cb7234840e5f93b10218f90d653f0f14",
+      "size": 20480
+    }
+  ]
+}
